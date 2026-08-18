@@ -1,5 +1,13 @@
 type Job = { tabId: number; contentPort: chrome.runtime.Port };
 
+type DownloadReadyEvent = {
+  type: "event";
+  event: "download-ready";
+  jobId: string;
+  url: string;
+  filename: string;
+};
+
 const jobs = new Map<string, Job>();
 let offscreenPort: chrome.runtime.Port | undefined;
 let offscreenCreating: Promise<void> | undefined;
@@ -29,6 +37,27 @@ function emitToContent(jobId: string, message: Record<string, unknown>): void {
 
 function finishJob(jobId: string): void { jobs.delete(jobId); }
 
+function handleDownloadReady(message: DownloadReadyEvent): void {
+  const job = jobs.get(message.jobId);
+  if (!job || !offscreenPort || typeof message.url !== "string" || typeof message.filename !== "string") {
+    emitToContent(message.jobId, { type: "event", event: "error", message: "The remuxer did not provide a valid MP4 download request." });
+    finishJob(message.jobId);
+    return;
+  }
+
+  void chrome.downloads.download({ url: message.url, filename: message.filename, saveAs: true })
+    .then((downloadId) => {
+      offscreenPort?.postMessage({ type: "download-started", jobId: message.jobId, url: message.url });
+      emitToContent(message.jobId, { type: "event", event: "complete", message: `Chrome download ${downloadId} started.` });
+      finishJob(message.jobId);
+    })
+    .catch((error: unknown) => {
+      offscreenPort?.postMessage({ type: "download-failed", jobId: message.jobId, url: message.url });
+      emitToContent(message.jobId, { type: "event", event: "error", message: error instanceof Error ? error.message : String(error) });
+      finishJob(message.jobId);
+    });
+}
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === "hls-offscreen") {
     offscreenPort = port;
@@ -39,8 +68,12 @@ chrome.runtime.onConnect.addListener((port) => {
         offscreenPortAvailable = new Promise<void>((resolve) => { offscreenPortReady = resolve; });
       }
     });
-    port.onMessage.addListener((message) => {
+    port.onMessage.addListener((message: DownloadReadyEvent | Record<string, unknown>) => {
       if (message?.type !== "event" || typeof message.jobId !== "string") return;
+      if (message.event === "download-ready") {
+        handleDownloadReady(message as DownloadReadyEvent);
+        return;
+      }
       emitToContent(message.jobId, message);
       if (message.event === "complete" || message.event === "error") finishJob(message.jobId);
     });
