@@ -19,9 +19,12 @@ npm run build
 
 1. Open `chrome://extensions` (or `edge://extensions`).
 2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select the generated `dist/` directory.
-4. On an authorized page, paste an HLS `.m3u8` URL into the panel, or use a page-visible playlist URL detected through the Performance API.
-5. Select **Download MP4**.
+3. If you previously loaded this extension, click its reload button after rebuilding. Otherwise select **Load unpacked** and choose `dist/`.
+4. Refresh a normal `http` or `https` webpage. The fixed panel appears in the top-right corner.
+5. On an authorized page, paste an HLS `.m3u8` URL into the panel, or use a page-visible playlist URL detected through the Performance API.
+6. Select **Download MP4**.
+
+`content.js` is deliberately built as a single classic IIFE bundle rather than an ES module. This is required because Chromium injects manifest content scripts as classic scripts; it prevents the `Cannot use 'import.meta' outside a module` error.
 
 ## Architecture
 
