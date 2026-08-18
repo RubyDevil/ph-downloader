@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "copy:ffmpeg-core": "node scripts/copy-ffmpeg-core.mjs",
-    "build": "npm run copy:ffmpeg-core && vite build",
-    "dev": "vite build --watch"
+    "build": "npm run copy:ffmpeg-core && vite build --config vite.content.config.ts && vite build --config vite.offscreen.config.ts && vite build --config vite.background.config.ts",
+    "dev": "npm run build -- --watch"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
