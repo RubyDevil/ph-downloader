@@ -1,13 +1,17 @@
-const jobs = new Map<string, number>();
+type Job = { tabId: number; contentPort: chrome.runtime.Port };
+
+const jobs = new Map<string, Job>();
+let offscreenPort: chrome.runtime.Port | undefined;
 let offscreenCreating: Promise<void> | undefined;
+let offscreenPortReady: (() => void) | undefined;
+let offscreenPortAvailable = new Promise<void>((resolve) => { offscreenPortReady = resolve; });
 
 async function ensureOffscreen(): Promise<void> {
-  const existing = await chrome.runtime.getContexts({
+  const contexts = await chrome.runtime.getContexts({
     contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
     documentUrls: [chrome.runtime.getURL("offscreen.html")]
   });
-  if (existing.length) return;
-  if (!offscreenCreating) {
+  if (!contexts.length && !offscreenCreating) {
     offscreenCreating = chrome.offscreen.createDocument({
       url: "offscreen.html",
       reasons: [chrome.offscreen.Reason.BLOBS],
@@ -15,25 +19,71 @@ async function ensureOffscreen(): Promise<void> {
     }).finally(() => { offscreenCreating = undefined; });
   }
   await offscreenCreating;
+  if (!offscreenPort) await offscreenPortAvailable;
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
-  if (message?.target === "background" && message.type === "start") {
-    const tabId = sender.tab?.id;
-    if (typeof tabId !== "number") return;
-    jobs.set(message.jobId, tabId);
-    void ensureOffscreen()
-      .then(() => chrome.runtime.sendMessage({ ...message, target: "offscreen" }))
-      .catch((error: unknown) => chrome.tabs.sendMessage(tabId, {
-        target: "content", type: "error", jobId: message.jobId,
-        message: error instanceof Error ? error.message : String(error)
-      }));
+function emitToContent(jobId: string, message: Record<string, unknown>): void {
+  const job = jobs.get(jobId);
+  if (job) job.contentPort.postMessage({ target: "content", jobId, ...message });
+}
+
+function finishJob(jobId: string): void { jobs.delete(jobId); }
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === "hls-offscreen") {
+    offscreenPort = port;
+    offscreenPortReady?.();
+    port.onDisconnect.addListener(() => {
+      if (offscreenPort === port) {
+        offscreenPort = undefined;
+        offscreenPortAvailable = new Promise<void>((resolve) => { offscreenPortReady = resolve; });
+      }
+    });
+    port.onMessage.addListener((message) => {
+      if (message?.type !== "event" || typeof message.jobId !== "string") return;
+      emitToContent(message.jobId, message);
+      if (message.event === "complete" || message.event === "error") finishJob(message.jobId);
+    });
     return;
   }
 
-  if (message?.target === "background" && message.type === "offscreen-event") {
-    const tabId = jobs.get(message.jobId);
-    if (typeof tabId === "number") void chrome.tabs.sendMessage(tabId, { ...message, target: "content" });
-    if (message.event === "complete" || message.event === "error") jobs.delete(message.jobId);
-  }
+  if (port.name !== "hls-content") return;
+  const tabId = port.sender?.tab?.id;
+  if (typeof tabId !== "number") { port.disconnect(); return; }
+
+  const ownedJobs = new Set<string>();
+  port.onDisconnect.addListener(() => {
+    for (const jobId of ownedJobs) {
+      jobs.delete(jobId);
+      offscreenPort?.postMessage({ type: "cancel", jobId });
+    }
+  });
+
+  port.onMessage.addListener((message) => {
+    const jobId = message?.jobId;
+    if (typeof jobId !== "string") return;
+
+    if (message.type === "start") {
+      if (jobs.has(jobId)) return;
+      jobs.set(jobId, { tabId, contentPort: port });
+      ownedJobs.add(jobId);
+      void ensureOffscreen()
+        .then(() => offscreenPort!.postMessage({
+          type: "start",
+          jobId,
+          total: message.total,
+          filename: message.filename
+        }))
+        .catch((error: unknown) => {
+          emitToContent(jobId, { type: "event", event: "error", message: error instanceof Error ? error.message : String(error) });
+          finishJob(jobId);
+        });
+      return;
+    }
+
+    if (!jobs.has(jobId)) return;
+    if (message.type === "segment" || message.type === "complete-input" || message.type === "error" || message.type === "cancel") {
+      offscreenPort?.postMessage(message);
+    }
+  });
 });
