@@ -23,14 +23,15 @@ npm run build
 4. Refresh a normal `http` or `https` webpage. The fixed panel appears in the top-right corner.
 5. On an authorized page, paste an HLS `.m3u8` URL into the panel, or use a page-visible playlist URL detected through the Performance API.
 6. Select **Download MP4**.
+7. Enable **Show diagnostic log** to see the latest FFmpeg startup, segment, and remux events. The panel retains the latest 250 events and its scrollable viewport shows roughly five lines.
 
-`content.js` is deliberately built as a single classic IIFE bundle rather than an ES module. This is required because Chromium injects manifest content scripts as classic scripts; it prevents the `Cannot use 'import.meta' outside a module` error.
+The FFmpeg wrapper worker, core JavaScript, and WebAssembly module are copied to `dist/vendor/` and declared as web-accessible extension resources. The loader explicitly points FFmpeg.wasm to those extension-local URLs and reports a failure after 30 seconds instead of leaving the UI indefinitely at **Loading FFmpeg…**.
 
 ## Architecture
 
-- `src/content.ts` injects the fixed downloader panel, locates a page-visible playlist URL, drives progress, and triggers the browser download.
+- `src/content.ts` injects the fixed downloader panel, locates a page-visible playlist URL, drives progress, displays diagnostics, and triggers the browser download.
 - `src/hls.ts` resolves master playlists to the highest advertised bandwidth rendition and parses VOD TS media playlists.
-- `src/remux.ts` loads browser-local FFmpeg core assets, fetches segments with bounded concurrency, writes files strictly in manifest order, and invokes `-c copy` remuxing.
-- `src/ui.css` contains the charcoal/orange panel style.
+- `src/remux.ts` loads browser-local FFmpeg worker/core assets, fetches segments with bounded concurrency, writes files strictly in manifest order, and invokes `-c copy` remuxing.
+- `src/ui.css` contains the charcoal/orange panel style and scrollable diagnostic log.
 
 The `npm run build` command copies FFmpeg core assets from `node_modules` into the packaged extension, so no server, native executable, local backend, or conversion service is used at runtime.

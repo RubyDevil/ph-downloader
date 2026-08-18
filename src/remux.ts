@@ -2,18 +2,44 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 
 export type Progress = (current: number, total: number) => void;
+export type Diagnostic = (message: string) => void;
 
 const ffmpeg = new FFmpeg();
+const LOAD_TIMEOUT_MS = 30_000;
 let loaded = false;
+let loggingAttached = false;
 
-async function load(): Promise<void> {
+function detail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function load(diagnostic: Diagnostic): Promise<void> {
   if (loaded) return;
-  const base = chrome.runtime.getURL("vendor/");
-  await ffmpeg.load({
-    coreURL: `${base}ffmpeg-core.js`,
-    wasmURL: `${base}ffmpeg-core.wasm`
-  });
+  if (!loggingAttached) {
+    ffmpeg.on("log", ({ type, message }) => diagnostic(`ffmpeg ${type}: ${message}`));
+    loggingAttached = true;
+  }
+
+  const vendor = chrome.runtime.getURL("vendor/");
+  diagnostic("Starting FFmpeg wrapper worker…");
+  try {
+    await Promise.race([
+      ffmpeg.load({
+        workerURL: `${vendor}ffmpeg-worker.js`,
+        coreURL: `${vendor}ffmpeg-core.js`,
+        wasmURL: `${vendor}ffmpeg-core.wasm`
+      }),
+      new Promise<never>((_, reject) => window.setTimeout(
+        () => reject(new Error("FFmpeg did not initialize within 30 seconds. Check the diagnostic log and the extension Errors view.")),
+        LOAD_TIMEOUT_MS
+      ))
+    ]);
+  } catch (error) {
+    diagnostic(`FFmpeg initialization failed: ${detail(error)}`);
+    throw error;
+  }
   loaded = true;
+  diagnostic("FFmpeg initialized successfully.");
 }
 
 /**
@@ -23,10 +49,11 @@ async function load(): Promise<void> {
 export async function remuxTsVod(
   segmentUrls: string[],
   onDownloading: Progress,
-  onStatus: (status: string) => void
+  onStatus: (status: string) => void,
+  diagnostic: Diagnostic
 ): Promise<Uint8Array> {
   onStatus("Loading FFmpeg...");
-  await load();
+  await load(diagnostic);
 
   const total = segmentUrls.length;
   const pending = new Map<number, Uint8Array>();
@@ -41,6 +68,7 @@ export async function remuxTsVod(
       const index = started++;
       if (index >= total) return;
       try {
+        diagnostic(`Fetching segment ${index + 1}/${total}`);
         const response = await fetch(segmentUrls[index], { credentials: "include" });
         if (!response.ok) throw new Error(`Segment ${index + 1} request failed (${response.status}).`);
         pending.set(index, await fetchFile(response));
@@ -54,6 +82,7 @@ export async function remuxTsVod(
         }
       } catch (error) {
         fatal = error;
+        diagnostic(`Segment failure: ${detail(error)}`);
         return;
       }
     }
@@ -64,15 +93,17 @@ export async function remuxTsVod(
   if (written !== total) throw new Error("Could not preserve the complete segment order.");
 
   onStatus("Joining HLS segments...");
+  diagnostic("Writing FFmpeg concat input list.");
   const list = Array.from({ length: total }, (_, index) => `file 'segment-${String(index).padStart(6, "0")}.ts'`).join("\n");
   await ffmpeg.writeFile("input.txt", list);
 
   onStatus("Remuxing TS → MP4...");
+  diagnostic("Starting stream-copy MP4 remux.");
   await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "input.txt", "-c", "copy", "-movflags", "+faststart", "output.mp4"]);
   onStatus("Preparing MP4...");
   const output = await ffmpeg.readFile("output.mp4");
+  diagnostic("MP4 output read successfully.");
 
-  // Delete large virtual-FS inputs immediately after a successful remux.
   await Promise.all(Array.from({ length: total }, (_, index) => ffmpeg.deleteFile(`segment-${String(index).padStart(6, "0")}.ts`)));
   await ffmpeg.deleteFile("input.txt");
   await ffmpeg.deleteFile("output.mp4");
