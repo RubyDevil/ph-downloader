@@ -4,14 +4,14 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packages = resolve(root, "node_modules/@ffmpeg");
-const coreDirectory = resolve(packages, "core/dist/umd");
+// The @ffmpeg/ffmpeg class worker is an ES module, so it must load the matching
+// ESM core bundle—not @ffmpeg/core's incompatible UMD bundle.
+const coreDirectory = resolve(packages, "core/dist/esm");
 const wrapperDirectory = resolve(packages, "ffmpeg/dist/esm");
 const destination = resolve(root, "public/vendor");
 const assets = [
   [coreDirectory, "ffmpeg-core.js"],
   [coreDirectory, "ffmpeg-core.wasm"],
-  // These three files form FFmpeg.wasm's ESM class worker. The single-threaded
-  // @ffmpeg/core package intentionally does not ship ffmpeg-core.worker.js.
   [wrapperDirectory, "worker.js"],
   [wrapperDirectory, "const.js"],
   [wrapperDirectory, "errors.js"]
@@ -29,4 +29,4 @@ for (const [directory, file] of assets) {
   await copyFile(from, to);
 }
 
-console.info("Copied FFmpeg core and ESM class-worker assets to public/vendor.");
+console.info("Copied ESM FFmpeg core and class-worker assets to public/vendor.");
