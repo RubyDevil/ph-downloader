@@ -45,6 +45,9 @@ export class SegmentRemuxJob {
   accept(index: number, buffer: ArrayBuffer): void {
     if (this.cancelled) return;
     if (index < 0 || index >= this.total) throw new Error(`Received invalid segment index ${index}.`);
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength === 0) {
+      throw new Error(`Segment ${index + 1} did not arrive as non-empty binary data.`);
+    }
     this.pending.set(index, buffer);
     this.scheduleDrain();
   }
