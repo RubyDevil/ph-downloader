@@ -3,6 +3,8 @@ import { fetchAuthorizedResource, resolveVodPlaylist } from "./hls";
 
 const MAX_DIAGNOSTICS = 250;
 const SEGMENT_CONCURRENCY = 3;
+const SEGMENT_DOWNLOAD_PROGRESS = 90;
+const REMUX_PROGRESS_RANGE = 8;
 
 type BackgroundEvent = {
   target: "content";
@@ -83,8 +85,8 @@ function mount(): void {
           if (!buffer.byteLength) throw new Error(`Segment ${index + 1} was empty.`);
           port.postMessage({ type: "segment", jobId: activeJobId, index, data: encodeBase64(buffer) });
           transferred += 1;
-          setStatus(`Sending segments ${transferred}/${segments.length}`);
-          setProgress((transferred / segments.length) * 75);
+          setStatus(`Downloaded segments ${transferred}/${segments.length}`);
+          setProgress((transferred / segments.length) * SEGMENT_DOWNLOAD_PROGRESS);
         } catch (error) {
           failure = error;
           return;
@@ -112,7 +114,7 @@ function mount(): void {
     if (message.event === "status" && message.message) setStatus(message.message);
     if (message.event === "progress" && message.current !== undefined && message.total) {
       setStatus(`Writing segment ${message.current}/${message.total}`);
-      setProgress(75 + (message.current / message.total) * 17);
+      setProgress(SEGMENT_DOWNLOAD_PROGRESS + (message.current / message.total) * REMUX_PROGRESS_RANGE);
     }
     if (message.event === "ready") {
       if (!jobId || !activeSegments.length) {
