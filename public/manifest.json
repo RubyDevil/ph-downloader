@@ -3,6 +3,8 @@
   "name": "Authorized HLS VOD Downloader",
   "version": "0.1.0",
   "description": "Remuxes authorized, unencrypted TS HLS VOD playlists to MP4 in the browser.",
+  "minimum_chrome_version": "148",
+  "message_serialization": "structured_clone",
   "permissions": ["downloads", "offscreen", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {

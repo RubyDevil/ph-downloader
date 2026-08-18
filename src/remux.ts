@@ -1,9 +1,7 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
-import { fetchAuthorizedResource } from "./hls";
 
-export type Progress = (current: number, total: number) => void;
 export type Diagnostic = (message: string) => void;
+export type Progress = (current: number, total: number) => void;
 
 const ffmpeg = new FFmpeg();
 const LOAD_TIMEOUT_MS = 30_000;
@@ -27,29 +25,48 @@ async function load(diagnostic: Diagnostic): Promise<void> {
   diagnostic("FFmpeg initialized successfully.");
 }
 
-export async function remuxTsVod(segmentUrls: string[], onDownloading: Progress, onStatus: (status: string) => void, diagnostic: Diagnostic): Promise<Uint8Array> {
-  onStatus("Loading FFmpeg..."); await load(diagnostic);
-  const total = segmentUrls.length; const pending = new Map<number, Uint8Array>();
-  let started = 0, written = 0, completed = 0; let fatal: unknown; const parallelism = 4;
-  const worker = async () => {
-    while (!fatal) {
-      const index = started++; if (index >= total) return;
-      try {
-        diagnostic(`Fetching segment ${index + 1}/${total}.`);
-        const response = await fetchAuthorizedResource(segmentUrls[index], "Segment", diagnostic);
-        pending.set(index, await fetchFile(response)); completed++; onDownloading(completed, total);
-        while (pending.has(written)) { const data = pending.get(written)!; pending.delete(written); await ffmpeg.writeFile(`segment-${String(written).padStart(6, "0")}.ts`, data); written++; }
-      } catch (error) { fatal = error; diagnostic(`Segment ${index + 1}/${total} failure: ${detail(error)}`); return; }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(parallelism, total) }, worker));
-  if (fatal) throw fatal;
-  if (written !== total) throw new Error("Could not preserve the complete segment order.");
-  onStatus("Joining HLS segments..."); diagnostic("Writing FFmpeg concat input list.");
-  await ffmpeg.writeFile("input.txt", Array.from({ length: total }, (_, i) => `file 'segment-${String(i).padStart(6, "0")}.ts'`).join("\n"));
-  onStatus("Remuxing TS → MP4..."); diagnostic("Starting stream-copy MP4 remux.");
-  await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "input.txt", "-c", "copy", "-movflags", "+faststart", "output.mp4"]);
-  onStatus("Preparing MP4..."); const output = await ffmpeg.readFile("output.mp4"); diagnostic("MP4 output read successfully.");
-  await Promise.all(Array.from({ length: total }, (_, i) => ffmpeg.deleteFile(`segment-${String(i).padStart(6, "0")}.ts`)));
-  await ffmpeg.deleteFile("input.txt"); await ffmpeg.deleteFile("output.mp4"); return output as Uint8Array;
+export class SegmentRemuxJob {
+  private readonly pending = new Map<number, ArrayBuffer>();
+  private writeChain = Promise.resolve();
+  private nextIndex = 0;
+  private cancelled = false;
+
+  constructor(private readonly total: number, private readonly progress: Progress, private readonly diagnostic: Diagnostic) {}
+
+  async initialize(): Promise<void> { await load(this.diagnostic); }
+
+  accept(index: number, buffer: ArrayBuffer): void {
+    if (this.cancelled) return;
+    if (index < 0 || index >= this.total) throw new Error(`Received invalid segment index ${index}.`);
+    this.pending.set(index, buffer);
+    this.scheduleDrain();
+  }
+
+  cancel(): void { this.cancelled = true; this.pending.clear(); }
+
+  private scheduleDrain(): void {
+    this.writeChain = this.writeChain.then(async () => {
+      while (!this.cancelled && this.pending.has(this.nextIndex)) {
+        const buffer = this.pending.get(this.nextIndex)!;
+        this.pending.delete(this.nextIndex);
+        await ffmpeg.writeFile(`segment-${String(this.nextIndex).padStart(6, "0")}.ts`, new Uint8Array(buffer));
+        this.nextIndex += 1;
+        this.progress(this.nextIndex, this.total);
+      }
+    });
+  }
+
+  async complete(): Promise<Uint8Array> {
+    await this.writeChain;
+    if (this.cancelled) throw new Error("The download was cancelled.");
+    if (this.nextIndex !== this.total) throw new Error(`Expected ${this.total} segments but received ${this.nextIndex} in playlist order.`);
+    this.diagnostic("Writing FFmpeg concat input list.");
+    await ffmpeg.writeFile("input.txt", Array.from({ length: this.total }, (_, i) => `file 'segment-${String(i).padStart(6, "0")}.ts'`).join("\n"));
+    this.diagnostic("Starting stream-copy MP4 remux.");
+    await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "input.txt", "-c", "copy", "-movflags", "+faststart", "output.mp4"]);
+    const output = await ffmpeg.readFile("output.mp4");
+    await Promise.all(Array.from({ length: this.total }, (_, i) => ffmpeg.deleteFile(`segment-${String(i).padStart(6, "0")}.ts`)));
+    await ffmpeg.deleteFile("input.txt"); await ffmpeg.deleteFile("output.mp4");
+    return output as Uint8Array;
+  }
 }

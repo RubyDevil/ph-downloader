@@ -1,12 +1,14 @@
 import "./ui.css";
+import { fetchAuthorizedResource, resolveVodPlaylist } from "./hls";
 
 const MAX_DIAGNOSTICS = 250;
+const SEGMENT_CONCURRENCY = 3;
 
-type EventMessage = {
+type BackgroundEvent = {
   target: "content";
-  type: "offscreen-event" | "error";
   jobId: string;
-  event?: "status" | "progress" | "diagnostic" | "complete" | "error";
+  type: "event";
+  event: "ready" | "status" | "progress" | "diagnostic" | "complete" | "error";
   message?: string;
   current?: number;
   total?: number;
@@ -43,6 +45,7 @@ function mount(): void {
   const checkbox = panel.querySelector<HTMLInputElement>(".hls-downloader__diagnostic-checkbox")!;
   const log = panel.querySelector<HTMLPreElement>(".hls-downloader__diagnostic-log")!;
   const diagnostics: string[] = [];
+  const port = chrome.runtime.connect({ name: "hls-content" });
   let jobId: string | undefined;
 
   const addDiagnostic = (message: string) => {
@@ -53,6 +56,39 @@ function mount(): void {
   };
   const setStatus = (message: string) => { status.textContent = message; };
   const setProgress = (value: number) => { progress.style.width = `${Math.max(0, Math.min(100, value))}%`; };
+  const fail = (message: string) => { setProgress(0); setStatus(`ERROR: ${message}`); addDiagnostic(`ERROR: ${message}`); button.disabled = false; };
+
+  async function sendSegments(segments: string[], activeJobId: string): Promise<void> {
+    let next = 0;
+    let transferred = 0;
+    let failure: unknown;
+    const fetchOne = async (): Promise<void> => {
+      while (!failure) {
+        const index = next++;
+        if (index >= segments.length) return;
+        try {
+          addDiagnostic(`Fetching segment ${index + 1}/${segments.length} in page content context.`);
+          const response = await fetchAuthorizedResource(segments[index], "Segment", addDiagnostic);
+          const buffer = await response.arrayBuffer();
+          if (!buffer.byteLength) throw new Error(`Segment ${index + 1} was empty.`);
+          // Chrome runtime Ports use extension message serialization. With this
+          // manifest's structured-clone opt-in, ArrayBuffer is sent as binary
+          // data (not base64/JSON); Chrome currently copies rather than detaches it.
+          port.postMessage({ type: "segment", jobId: activeJobId, index, buffer });
+          transferred += 1;
+          setStatus(`Sending segments ${transferred}/${segments.length}`);
+          setProgress((transferred / segments.length) * 75);
+        } catch (error) {
+          failure = error;
+          return;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(SEGMENT_CONCURRENCY, segments.length) }, fetchOne));
+    if (failure) throw failure;
+    port.postMessage({ type: "complete-input", jobId: activeJobId });
+    addDiagnostic("All playlist-order-indexed segment buffers were sent to the offscreen remuxer.");
+  }
 
   checkbox.addEventListener("change", () => { log.hidden = !checkbox.checked; });
   const observed = findPlaylist();
@@ -62,30 +98,39 @@ function mount(): void {
     addDiagnostic(`Detected page-visible playlist: ${observed}`);
   }
 
-  chrome.runtime.onMessage.addListener((message: EventMessage) => {
+  port.onDisconnect.addListener(() => { if (button.disabled) fail("The extension messaging port disconnected. Reload the extension and page, then retry."); });
+  port.onMessage.addListener((message: BackgroundEvent) => {
     if (message.target !== "content" || message.jobId !== jobId) return;
-    if (message.type === "error" || message.event === "error") {
-      setProgress(0); setStatus(`ERROR: ${message.message}`); addDiagnostic(`ERROR: ${message.message}`); button.disabled = false; return;
-    }
-    if (message.event === "status" && message.message) setStatus(message.message);
     if (message.event === "diagnostic" && message.message) addDiagnostic(message.message);
+    if (message.event === "status" && message.message) setStatus(message.message);
     if (message.event === "progress" && message.current !== undefined && message.total) {
-      setStatus(`Downloading ${message.current}/${message.total}`);
-      setProgress((message.current / message.total) * 92);
+      setStatus(`Writing segment ${message.current}/${message.total}`);
+      setProgress(75 + (message.current / message.total) * 17);
     }
-    if (message.event === "complete") {
-      setProgress(100); setStatus("✓ MP4 download started"); addDiagnostic("MP4 was handed to Chrome Downloads."); button.disabled = false;
+    if (message.event === "ready") {
+      void sendSegments((message as BackgroundEvent & { segments?: string[] }).segments ?? [], jobId).catch((error: unknown) => {
+        const text = error instanceof Error ? error.message : String(error);
+        port.postMessage({ type: "error", jobId, message: text });
+        fail(text);
+      });
     }
+    if (message.event === "complete") { setProgress(100); setStatus("✓ MP4 download started"); addDiagnostic("MP4 was handed to Chrome Downloads."); button.disabled = false; }
+    if (message.event === "error") fail(message.message ?? "Unknown remux error.");
   });
 
   button.addEventListener("click", () => {
-    const playlistUrl = input.value.trim() || findPlaylist();
-    if (!playlistUrl) { setStatus("ERROR: Paste an authorized .m3u8 URL first."); return; }
-    jobId = crypto.randomUUID();
-    button.disabled = true; setProgress(0);
-    setStatus("Preparing extension remuxer…");
-    addDiagnostic(`Starting job ${jobId}; requesting offscreen FFmpeg document.`);
-    chrome.runtime.sendMessage({ target: "background", type: "start", jobId, playlistUrl, filename: safeName() });
+    void (async () => {
+      const playlistUrl = input.value.trim() || findPlaylist();
+      if (!playlistUrl) { fail("Paste an authorized .m3u8 URL first."); return; }
+      button.disabled = true; setProgress(0); jobId = crypto.randomUUID();
+      try {
+        addDiagnostic("Resolving playlist in the page content context.");
+        setStatus("Resolving authorized HLS playlist…");
+        const playlist = await resolveVodPlaylist(playlistUrl, addDiagnostic);
+        addDiagnostic(`Resolved VOD playlist with ${playlist.segments.length} TS segments. Waiting for offscreen remuxer.`);
+        port.postMessage({ type: "start", jobId, total: playlist.segments.length, filename: safeName(), segments: playlist.segments });
+      } catch (error) { fail(error instanceof Error ? error.message : String(error)); }
+    })();
   });
 }
 
