@@ -5,8 +5,10 @@ type Segment = { type: "segment"; jobId: string; index: number; data: string };
 type Complete = { type: "complete-input"; jobId: string };
 type Cancel = { type: "cancel"; jobId: string };
 type Failure = { type: "error"; jobId: string; message: string };
+type DownloadStarted = { type: "download-started"; jobId: string; url: string };
+type DownloadFailed = { type: "download-failed"; jobId: string; url: string };
 
-type RunningJob = { remux: SegmentRemuxJob; filename: string };
+type RunningJob = { remux: SegmentRemuxJob; filename: string; downloadUrl?: string };
 const jobs = new Map<string, RunningJob>();
 const port = chrome.runtime.connect({ name: "hls-offscreen" });
 
@@ -23,8 +25,15 @@ function decodeBase64(data: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-port.onMessage.addListener((message: Start | Segment | Complete | Cancel | Failure) => {
+port.onMessage.addListener((message: Start | Segment | Complete | Cancel | Failure | DownloadStarted | DownloadFailed) => {
   void (async () => {
+    if (message.type === "download-started" || message.type === "download-failed") {
+      const job = jobs.get(message.jobId);
+      if (job?.downloadUrl === message.url) URL.revokeObjectURL(message.url);
+      jobs.delete(message.jobId);
+      return;
+    }
+
     if (message.type === "start") {
       try {
         if (jobs.size) throw new Error("Another remux job is already running.");
@@ -53,13 +62,14 @@ port.onMessage.addListener((message: Start | Segment | Complete | Cancel | Failu
       try {
         emit(message.jobId, "status", { message: "Joining HLS segments…" });
         const data = await job.remux.complete();
-        emit(message.jobId, "status", { message: "Preparing MP4…" });
+        emit(message.jobId, "status", { message: "Preparing MP4 download…" });
         const url = URL.createObjectURL(new Blob([data], { type: "video/mp4" }));
-        await chrome.downloads.download({ url, filename: job.filename, saveAs: true });
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        emit(message.jobId, "complete");
-      } catch (error) { emit(message.jobId, "error", { message: errorText(error) }); }
-      finally { jobs.delete(message.jobId); }
+        job.downloadUrl = url;
+        emit(message.jobId, "download-ready", { url, filename: job.filename });
+      } catch (error) {
+        jobs.delete(message.jobId);
+        emit(message.jobId, "error", { message: errorText(error) });
+      }
     }
   })();
 });
