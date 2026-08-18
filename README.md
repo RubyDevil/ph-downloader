@@ -25,7 +25,11 @@ npm run build
 6. Select **Download MP4**.
 7. Enable **Show diagnostic log** to see the latest FFmpeg startup, segment, and remux events. The panel retains the latest 250 events and its scrollable viewport shows roughly five lines.
 
-The FFmpeg wrapper worker, core JavaScript, and WebAssembly module are copied to `dist/vendor/` and declared as web-accessible extension resources. The loader explicitly points FFmpeg.wasm to those extension-local URLs and reports a failure after 30 seconds instead of leaving the UI indefinitely at **Loading FFmpeg…**.
+## FFmpeg packaging
+
+This project uses the single-threaded `@ffmpeg/core` package. Its core JavaScript and WASM files are copied from `@ffmpeg/core/dist/umd`. Its **class worker** is `@ffmpeg/ffmpeg/dist/esm/worker.js`, which imports `const.js` and `errors.js`; all three are copied to `dist/vendor/` and exposed as extension resources.
+
+`workerURL` is deliberately not configured: that setting is for the pthread worker used by the separate multithreaded `@ffmpeg/core-mt` package. The extension instead configures `classWorkerURL`, `coreURL`, and `wasmURL`, and shows a timeout error after 30 seconds rather than leaving the UI indefinitely at **Loading FFmpeg…**.
 
 ## Architecture
 
@@ -33,5 +37,3 @@ The FFmpeg wrapper worker, core JavaScript, and WebAssembly module are copied to
 - `src/hls.ts` resolves master playlists to the highest advertised bandwidth rendition and parses VOD TS media playlists.
 - `src/remux.ts` loads browser-local FFmpeg worker/core assets, fetches segments with bounded concurrency, writes files strictly in manifest order, and invokes `-c copy` remuxing.
 - `src/ui.css` contains the charcoal/orange panel style and scrollable diagnostic log.
-
-The `npm run build` command copies FFmpeg core assets from `node_modules` into the packaged extension, so no server, native executable, local backend, or conversion service is used at runtime.

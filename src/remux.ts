@@ -21,11 +21,15 @@ async function load(diagnostic: Diagnostic): Promise<void> {
   }
 
   const vendor = chrome.runtime.getURL("vendor/");
-  diagnostic("Starting FFmpeg wrapper worker…");
+  diagnostic("Starting FFmpeg class worker…");
   try {
     await Promise.race([
       ffmpeg.load({
-        workerURL: `${vendor}ffmpeg-worker.js`,
+        // worker.js is the @ffmpeg/ffmpeg wrapper worker. It imports const.js
+        // and errors.js beside it, so all three are packaged in vendor/.
+        classWorkerURL: `${vendor}worker.js`,
+        // This project uses the single-threaded @ffmpeg/core package. Do not
+        // provide workerURL: that option is only for core-mt's pthread worker.
         coreURL: `${vendor}ffmpeg-core.js`,
         wasmURL: `${vendor}ffmpeg-core.wasm`
       }),
