@@ -1,63 +1,42 @@
 # PornHub Downloader
 
-Save supported PornHub videos as **MP4 files** directly from your browser.
+Save PornHub videos as **MP4 files** directly from your browser.
 
+> [!NOTE]  
 > **Beta software:** This extension is still being tested. Some videos may not be available to download, and the experience may change as it improves.
 
 ## What it does
 
-When you open a supported PornHub video page, the extension adds a small **PornHub Downloader** panel to the page. From there, you can:
+When you open a supported PornHub video page `pornhub.com/view_video.php?viewkey=...`, the extension adds a small **PornHub Downloader** panel to the page. From there, you can download a video as an MP4 file.
 
-- download a video as an MP4 file;
-- see download progress while the file is being prepared;
-- choose where Chrome saves the finished file;
-- use the video title as the suggested filename.
+## Install in browser
 
-Everything is prepared locally in your browser before Chrome starts the download.
+This project is currently installed as an **unpacked browser extension**:
 
-## Before you start
-
-- Use a current version of **Google Chrome** (Chrome 148 or newer).
-- Sign in or access the video normally if the site requires it.
-- Only download videos you are allowed to save. Respect the creator's rights, the website's rules, and applicable laws.
-
-## Install in Chrome
-
-This project is currently installed as an unpacked Chrome extension:
-
-1. Download the extension folder from a source you trust and keep it somewhere you will not delete.
-2. In Chrome, open `chrome://extensions`.
-3. Turn on **Developer mode** in the top-right corner.
-4. Select **Load unpacked**.
-5. Choose the extension folder.
-6. Make sure **PornHub Downloader** is switched on.
+1. Download an archive `.zip`|`.7z` from a [release](../../releases).
+2. Extract the contents of the archive.
+3. In your browser, go to the extensions `chrome://extensions`.
+4. Turn on **Developer mode** (usually in the top-right corner).
+5. Click **Load unpacked**.
+6. Select the extracted extension folder.
+7. *If you wish to use it in private navigation, you may need to give it additional permissions.*
+<img width="1858" height="757" alt="image" src="https://github.com/user-attachments/assets/8f212ead-e299-494e-9322-8a60e0b40ebf" />
 
 ## Download a video
 
-1. Open a supported PornHub video page and let the video begin loading.
-2. Find the **PornHub Downloader** panel on the page.
+1. Open a supported PornHub video page `pornhub.com/view_video.php?viewkey=...`.
+2. Move your mouse over to the **PornHub Downloader** panel at the top right of the page.
 3. Select **Download MP4**.
-4. Wait for the progress bar to finish.
-5. When Chrome asks where to save the file, choose a location and confirm.
 
-Your download should then appear in Chrome's downloads list and in the folder you selected.
+> [!TIP]
+> If something does not work, try these quick fixes first:
+> - Refresh the video page.
+>   Wait for the video to load.
+> - Confirm that the extension is enabled at `chrome://extensions`.
+> - Reload the extension from `chrome://extensions`, then refresh the video page.
 
-## If something does not work
-
-Try these quick fixes first:
-
-- Refresh the video page after installing or updating the extension.
-- Start the video briefly, then try again.
-- Make sure you can watch the video normally in Chrome before downloading it.
-- Confirm that the extension is enabled at `chrome://extensions`.
-- Reload the extension from `chrome://extensions`, then refresh the video page.
-- If the extension asks for a playlist address, paste the authorized video playlist URL only if you have one and are permitted to use it.
-
-Some videos use formats or protections that this extension cannot download.
-
-## Privacy
-
-The extension needs access to PornHub video pages so it can detect a playable video stream and create the MP4 download. It also needs Chrome's download permission to save the file you request. It is intended to handle the download in your browser rather than sending your video to a separate service.
+> [!WARNING]  
+> Some videos mays use formats or protections that this extension cannot download.
 
 ## Need help?
 
