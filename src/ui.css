@@ -22,3 +22,6 @@
 .hls-downloader__label { display: block; color: #bbb; font-size: 11px; margin: 0 0 4px; }
 .hls-downloader__input { box-sizing: border-box; width: 100%; margin: 0 0 10px; padding: 8px; border: 1px solid #3d3d3d; border-radius: 4px; background: #252525; color: #fff; font: inherit; }
 .hls-downloader__input:focus { outline: 1px solid #ff9000; border-color: #ff9000; }
+.hls-downloader__diagnostic-toggle { display: flex; align-items: center; gap: 6px; margin: 0 0 9px; color: #bbb; font-size: 12px; cursor: pointer; }
+.hls-downloader__diagnostic-checkbox { accent-color: #ff9000; margin: 0; }
+.hls-downloader__diagnostic-log { box-sizing: border-box; height: 82px; width: 100%; overflow: auto; margin: 0 0 10px; padding: 7px; border: 1px solid #393939; border-radius: 4px; background: #101010; color: #d0d0d0; font: 10px/1.45 Consolas, "Courier New", monospace; white-space: pre-wrap; word-break: break-word; }

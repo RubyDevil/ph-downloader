@@ -15,7 +15,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["vendor/ffmpeg-core.js", "vendor/ffmpeg-core.wasm"],
+      "resources": ["vendor/ffmpeg-core.js", "vendor/ffmpeg-core.wasm", "vendor/ffmpeg-worker.js"],
       "matches": ["<all_urls>"]
     }
   ]
