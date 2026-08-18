@@ -1,0 +1,21 @@
+{
+  "name": "authorized-hls-vod-downloader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "copy:ffmpeg-core": "mkdir -p public/vendor && cp node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.js public/vendor/ffmpeg-core.js && cp node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.wasm public/vendor/ffmpeg-core.wasm",
+    "build": "npm run copy:ffmpeg-core && vite build",
+    "dev": "vite build --watch"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.307",
+    "typescript": "^5.8.3",
+    "vite": "^6.1.0"
+  }
+}
