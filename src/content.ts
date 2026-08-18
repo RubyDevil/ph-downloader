@@ -47,6 +47,9 @@ function mount(): void {
   const diagnostics: string[] = [];
   const port = chrome.runtime.connect({ name: "hls-content" });
   let jobId: string | undefined;
+  // Keep URLs in the page-context network layer. The offscreen remuxer receives
+  // only indexed TS bytes, so it never needs CDN URLs or signed query strings.
+  let activeSegments: string[] = [];
 
   const addDiagnostic = (message: string) => {
     diagnostics.push(`[${new Date().toLocaleTimeString()}] ${message}`);
@@ -71,9 +74,6 @@ function mount(): void {
           const response = await fetchAuthorizedResource(segments[index], "Segment", addDiagnostic);
           const buffer = await response.arrayBuffer();
           if (!buffer.byteLength) throw new Error(`Segment ${index + 1} was empty.`);
-          // Chrome runtime Ports use extension message serialization. With this
-          // manifest's structured-clone opt-in, ArrayBuffer is sent as binary
-          // data (not base64/JSON); Chrome currently copies rather than detaches it.
           port.postMessage({ type: "segment", jobId: activeJobId, index, buffer });
           transferred += 1;
           setStatus(`Sending segments ${transferred}/${segments.length}`);
@@ -108,7 +108,11 @@ function mount(): void {
       setProgress(75 + (message.current / message.total) * 17);
     }
     if (message.event === "ready") {
-      void sendSegments((message as BackgroundEvent & { segments?: string[] }).segments ?? [], jobId).catch((error: unknown) => {
+      if (!jobId || !activeSegments.length) {
+        fail("No resolved HLS segments are available to send to the offscreen remuxer.");
+        return;
+      }
+      void sendSegments(activeSegments, jobId).catch((error: unknown) => {
         const text = error instanceof Error ? error.message : String(error);
         port.postMessage({ type: "error", jobId, message: text });
         fail(text);
@@ -122,13 +126,14 @@ function mount(): void {
     void (async () => {
       const playlistUrl = input.value.trim() || findPlaylist();
       if (!playlistUrl) { fail("Paste an authorized .m3u8 URL first."); return; }
-      button.disabled = true; setProgress(0); jobId = crypto.randomUUID();
+      button.disabled = true; setProgress(0); jobId = crypto.randomUUID(); activeSegments = [];
       try {
         addDiagnostic("Resolving playlist in the page content context.");
         setStatus("Resolving authorized HLS playlist…");
         const playlist = await resolveVodPlaylist(playlistUrl, addDiagnostic);
-        addDiagnostic(`Resolved VOD playlist with ${playlist.segments.length} TS segments. Waiting for offscreen remuxer.`);
-        port.postMessage({ type: "start", jobId, total: playlist.segments.length, filename: safeName(), segments: playlist.segments });
+        activeSegments = playlist.segments;
+        addDiagnostic(`Resolved VOD playlist with ${activeSegments.length} TS segments. Waiting for offscreen remuxer.`);
+        port.postMessage({ type: "start", jobId, total: activeSegments.length, filename: safeName() });
       } catch (error) { fail(error instanceof Error ? error.message : String(error)); }
     })();
   });
