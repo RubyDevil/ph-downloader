@@ -23,7 +23,7 @@ async function ensureOffscreen(): Promise<void> {
     offscreenCreating = chrome.offscreen.createDocument({
       url: "offscreen.html",
       reasons: [chrome.offscreen.Reason.BLOBS],
-      justification: "Run browser-local FFmpeg WebAssembly and create an MP4 Blob for an authorized download."
+      justification: "Run browser-local FFmpeg WebAssembly and create an MP4 Blob for a download."
     }).finally(() => { offscreenCreating = undefined; });
   }
   await offscreenCreating;

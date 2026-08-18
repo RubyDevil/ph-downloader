@@ -16,7 +16,7 @@ function describeUrl(value: string): string {
 function failureMessage(kind: "Playlist" | "Segment", url: string, error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);
   if (error instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(detail)) {
-    return `${kind} fetch was blocked before an HTTP response was available for ${describeUrl(url)}. This usually indicates browser network/CORS policy, DNS/TLS failure, or a source unavailable to the extension's authorized fetch context.`;
+    return `${kind} fetch was blocked before an HTTP response was available for ${describeUrl(url)}. This usually indicates browser network/CORS policy, DNS/TLS failure, or a source unavailable to the extension's fetch context.`;
   }
   return `${kind} fetch failed for ${describeUrl(url)}: ${detail}`;
 }

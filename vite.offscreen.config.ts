@@ -9,7 +9,7 @@ export default defineConfig({
     lib: {
       entry: resolve(import.meta.dirname, "src/offscreen.ts"),
       formats: ["iife"],
-      name: "AuthorizedHlsOffscreen",
+      name: "PornHubDownloaderOffscreen",
       fileName: () => "offscreen.js"
     },
     rollupOptions: { output: { inlineDynamicImports: true } }

@@ -9,7 +9,7 @@ export default defineConfig({
     lib: {
       entry: resolve(import.meta.dirname, "src/content.ts"),
       formats: ["iife"],
-      name: "AuthorizedHlsVodDownloader",
+      name: "PornHubDownloaderContent",
       fileName: () => "content.js",
       cssFileName: "content"
     },

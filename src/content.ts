@@ -40,7 +40,7 @@ function mount(): void {
   panel.className = "hls-downloader";
   panel.innerHTML = `
     <div class="hls-downloader__title">PornHub Downloader</div>
-    <div class="hls-downloader__status">Waiting for an authorized HLS playlist…</div>
+    <div class="hls-downloader__status">Waiting for an HLS playlist…</div>
     <div class="hls-downloader__progress"><div class="hls-downloader__progress-bar"></div></div>
     <label class="hls-downloader__label">Playlist URL (optional)</label>
     <input class="hls-downloader__input" type="url" placeholder="https://…/video.m3u8" />
@@ -103,7 +103,7 @@ function mount(): void {
   const observed = findPlaylist();
   if (observed) {
     input.value = observed;
-    setStatus("HLS playlist detected. Confirm you are authorized to download it.");
+    setStatus("HLS playlist detected. Click Download MP4 to start.");
     addDiagnostic(`Detected page-visible playlist: ${observed}`);
   }
 
@@ -134,11 +134,11 @@ function mount(): void {
   button.addEventListener("click", () => {
     void (async () => {
       const playlistUrl = input.value.trim() || findPlaylist();
-      if (!playlistUrl) { fail("Paste an authorized .m3u8 URL first."); return; }
+      if (!playlistUrl) { fail("Paste a .m3u8 URL first."); return; }
       button.disabled = true; setProgress(0); jobId = crypto.randomUUID(); activeSegments = [];
       try {
         addDiagnostic("Resolving playlist in the page content context.");
-        setStatus("Resolving authorized HLS playlist…");
+        setStatus("Resolving HLS playlist…");
         const playlist = await resolveVodPlaylist(playlistUrl, addDiagnostic);
         activeSegments = playlist.segments;
         addDiagnostic(`Resolved VOD playlist with ${activeSegments.length} TS segments. Waiting for offscreen remuxer.`);

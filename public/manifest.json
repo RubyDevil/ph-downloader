@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
   "name": "PornHub Downloader",
-  "version": "0.1.0",
-  "description": "Remuxes authorized, unencrypted TS HLS VOD playlists to MP4 in the browser.",
+  "version": "0.9.0",
+  "description": "Save PornHub videos as MP4 files directly from your browser.",
   "minimum_chrome_version": "148",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "message_serialization": "structured_clone",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"

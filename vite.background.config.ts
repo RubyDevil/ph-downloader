@@ -9,7 +9,7 @@ export default defineConfig({
     lib: {
       entry: resolve(import.meta.dirname, "src/background.ts"),
       formats: ["iife"],
-      name: "AuthorizedHlsBackground",
+      name: "PornHubDownloaderBackground",
       fileName: () => "background.js"
     },
     rollupOptions: { output: { inlineDynamicImports: true } }
