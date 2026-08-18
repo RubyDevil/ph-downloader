@@ -10,6 +10,10 @@ let loggingAttached = false;
 
 function detail(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
+function segmentPath(index: number): string {
+  return `/segment-${String(index).padStart(6, "0")}.ts`;
+}
+
 async function load(diagnostic: Diagnostic): Promise<void> {
   if (loaded) return;
   if (!loggingAttached) { ffmpeg.on("log", ({ type, message }) => diagnostic(`ffmpeg ${type}: ${message}`)); loggingAttached = true; }
@@ -49,7 +53,7 @@ export class SegmentRemuxJob {
       while (!this.cancelled && this.pending.has(this.nextIndex)) {
         const buffer = this.pending.get(this.nextIndex)!;
         this.pending.delete(this.nextIndex);
-        await ffmpeg.writeFile(`segment-${String(this.nextIndex).padStart(6, "0")}.ts`, new Uint8Array(buffer));
+        await ffmpeg.writeFile(segmentPath(this.nextIndex), new Uint8Array(buffer));
         this.nextIndex += 1;
         this.progress(this.nextIndex, this.total);
       }
@@ -60,13 +64,19 @@ export class SegmentRemuxJob {
     await this.writeChain;
     if (this.cancelled) throw new Error("The download was cancelled.");
     if (this.nextIndex !== this.total) throw new Error(`Expected ${this.total} segments but received ${this.nextIndex} in playlist order.`);
-    this.diagnostic("Writing FFmpeg concat input list.");
-    await ffmpeg.writeFile("input.txt", Array.from({ length: this.total }, (_, i) => `file 'segment-${String(i).padStart(6, "0")}.ts'`).join("\n"));
+
+    const inputPath = "/input.txt";
+    const outputPath = "/output.mp4";
+    this.diagnostic("Writing FFmpeg concat input list with absolute virtual filesystem paths.");
+    await ffmpeg.writeFile(inputPath, Array.from({ length: this.total }, (_, index) => `file '${segmentPath(index)}'`).join("\n"));
+
     this.diagnostic("Starting stream-copy MP4 remux.");
-    await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", "input.txt", "-c", "copy", "-movflags", "+faststart", "output.mp4"]);
-    const output = await ffmpeg.readFile("output.mp4");
-    await Promise.all(Array.from({ length: this.total }, (_, i) => ffmpeg.deleteFile(`segment-${String(i).padStart(6, "0")}.ts`)));
-    await ffmpeg.deleteFile("input.txt"); await ffmpeg.deleteFile("output.mp4");
+    await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", outputPath]);
+    const output = await ffmpeg.readFile(outputPath);
+
+    await Promise.all(Array.from({ length: this.total }, (_, index) => ffmpeg.deleteFile(segmentPath(index))));
+    await ffmpeg.deleteFile(inputPath);
+    await ffmpeg.deleteFile(outputPath);
     return output as Uint8Array;
   }
 }
