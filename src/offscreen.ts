@@ -1,7 +1,7 @@
 import { SegmentRemuxJob } from "./remux";
 
 type Start = { type: "start"; jobId: string; total: number; filename: string };
-type Segment = { type: "segment"; jobId: string; index: number; buffer: ArrayBuffer };
+type Segment = { type: "segment"; jobId: string; index: number; data: string };
 type Complete = { type: "complete-input"; jobId: string };
 type Cancel = { type: "cancel"; jobId: string };
 type Failure = { type: "error"; jobId: string; message: string };
@@ -15,6 +15,13 @@ function emit(jobId: string, event: string, payload: Record<string, unknown> = {
 }
 
 function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+
+function decodeBase64(data: string): ArrayBuffer {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer;
+}
 
 port.onMessage.addListener((message: Start | Segment | Complete | Cancel | Failure) => {
   void (async () => {
@@ -36,7 +43,10 @@ port.onMessage.addListener((message: Start | Segment | Complete | Cancel | Failu
 
     const job = jobs.get(message.jobId);
     if (!job) return;
-    if (message.type === "segment") { job.remux.accept(message.index, message.buffer); return; }
+    if (message.type === "segment") {
+      job.remux.accept(message.index, decodeBase64(message.data));
+      return;
+    }
     if (message.type === "cancel") { job.remux.cancel(); jobs.delete(message.jobId); return; }
     if (message.type === "error") { job.remux.cancel(); jobs.delete(message.jobId); emit(message.jobId, "error", { message: message.message }); return; }
     if (message.type === "complete-input") {

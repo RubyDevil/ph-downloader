@@ -23,6 +23,15 @@ function findPlaylist(): string | undefined {
   return performance.getEntriesByType("resource").map((entry) => entry.name).find((url) => /\.m3u8(?:$|[?#])/i.test(url));
 }
 
+function encodeBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
 function mount(): void {
   if (document.querySelector(".hls-downloader")) return;
   const panel = document.createElement("section");
@@ -47,8 +56,6 @@ function mount(): void {
   const diagnostics: string[] = [];
   const port = chrome.runtime.connect({ name: "hls-content" });
   let jobId: string | undefined;
-  // Keep URLs in the page-context network layer. The offscreen remuxer receives
-  // only indexed TS bytes, so it never needs CDN URLs or signed query strings.
   let activeSegments: string[] = [];
 
   const addDiagnostic = (message: string) => {
@@ -74,7 +81,7 @@ function mount(): void {
           const response = await fetchAuthorizedResource(segments[index], "Segment", addDiagnostic);
           const buffer = await response.arrayBuffer();
           if (!buffer.byteLength) throw new Error(`Segment ${index + 1} was empty.`);
-          port.postMessage({ type: "segment", jobId: activeJobId, index, buffer });
+          port.postMessage({ type: "segment", jobId: activeJobId, index, data: encodeBase64(buffer) });
           transferred += 1;
           setStatus(`Sending segments ${transferred}/${segments.length}`);
           setProgress((transferred / segments.length) * 75);
