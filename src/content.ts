@@ -39,7 +39,7 @@ function mount(): void {
   const panel = document.createElement("section");
   panel.className = "hls-downloader";
   panel.innerHTML = `
-    <div class="hls-downloader__title">HLS Downloader</div>
+    <div class="hls-downloader__title">PornHub Downloader</div>
     <div class="hls-downloader__status">Waiting for an authorized HLS playlist…</div>
     <div class="hls-downloader__progress"><div class="hls-downloader__progress-bar"></div></div>
     <label class="hls-downloader__label">Playlist URL (optional)</label>
