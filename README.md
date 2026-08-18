@@ -13,16 +13,29 @@ When you open a supported PornHub video page `pornhub.com/view_video.php?viewkey
 
 ## Install in browser
 
-This project is currently installed as an **unpacked browser extension**:
+> [!NOTE]
+> If you wish to use it in private navigation, you may need to give it additional permissions. <br>
+> <img width="249" height="40" alt="image" src="https://github.com/user-attachments/assets/c6eb2e5a-83e3-4ba9-afa0-81d6d7f00c35" />
 
-1. Download an archive `.zip`|`.7z` from a [release](../../releases).
+There are two ways to install this extension:
+
+### A) Install as packed extension (simpler)
+1. Download an **packed** archive `.crx` from a [release](../../releases).
+2. Double-click it *(or right-click and select "open with" to install in a specific browser)*
+3. In your browser, go to the extensions `chrome://extensions`.
+4. Locate the extension and click **Install**.
+<img width="852" height="213" alt="image" src="https://github.com/user-attachments/assets/398d7652-0a56-401f-a758-5674fdeb7557" />
+
+
+### B) Install as unpacked extension
+
+1. Download an **unpacked** archive `.zip`|`.7z` from a [release](../../releases).
 2. Extract the contents of the archive.
 3. In your browser, go to the extensions `chrome://extensions`.
 4. Turn on **Developer mode** (usually in the top-right corner).
 5. Click **Load unpacked**.
 6. Select the extracted extension folder.
-7. *If you wish to use it in private navigation, you may need to give it additional permissions.*
-<img width="1858" height="757" alt="image" src="https://github.com/user-attachments/assets/8f212ead-e299-494e-9322-8a60e0b40ebf" />
+<img width="1855" height="240" alt="image" src="https://github.com/user-attachments/assets/f513f6d2-eec8-4f5b-84c6-daabcbcdb331" />
 
 ## Download a video
 
