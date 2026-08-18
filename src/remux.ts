@@ -1,5 +1,6 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
+import { fetchAuthorizedResource } from "./hls";
 
 export type Progress = (current: number, total: number) => void;
 export type Diagnostic = (message: string) => void;
@@ -34,12 +35,11 @@ export async function remuxTsVod(segmentUrls: string[], onDownloading: Progress,
     while (!fatal) {
       const index = started++; if (index >= total) return;
       try {
-        diagnostic(`Fetching segment ${index + 1}/${total}`);
-        const response = await fetch(segmentUrls[index], { credentials: "include" });
-        if (!response.ok) throw new Error(`Segment ${index + 1} request failed (${response.status}).`);
+        diagnostic(`Fetching segment ${index + 1}/${total}.`);
+        const response = await fetchAuthorizedResource(segmentUrls[index], "Segment", diagnostic);
         pending.set(index, await fetchFile(response)); completed++; onDownloading(completed, total);
         while (pending.has(written)) { const data = pending.get(written)!; pending.delete(written); await ffmpeg.writeFile(`segment-${String(written).padStart(6, "0")}.ts`, data); written++; }
-      } catch (error) { fatal = error; diagnostic(`Segment failure: ${detail(error)}`); return; }
+      } catch (error) { fatal = error; diagnostic(`Segment ${index + 1}/${total} failure: ${detail(error)}`); return; }
     }
   };
   await Promise.all(Array.from({ length: Math.min(parallelism, total) }, worker));

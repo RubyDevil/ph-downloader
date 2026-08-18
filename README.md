@@ -7,8 +7,17 @@ A Chromium Manifest V3 extension for **authorized, unencrypted HLS VOD media**. 
 - Use only for media you own or are explicitly authorized to download.
 - The extension does not intercept player Web Workers, bypass DRM, replay protected player requests, alter signed URLs, or work around CDN authorization failures.
 - It supports completed VOD playlists with ordinary MPEG-TS (`.ts`) segments; it rejects encryption keys, session keys, fMP4 maps, and live playlists.
-- Playlist and segment requests must be reachable through the extension's normal authorized fetch path. A `401`, `403`, or `412` is surfaced as an error.
+- Playlist and segment requests must be reachable through the extension's normal authorized fetch path. A `401`, `403`, or `412` is surfaced as an observable HTTP error.
 - FFmpeg.wasm retains input/output in its virtual filesystem. The current implementation uses a four-request segment window and a 750 MB output safety limit.
+
+## Diagnostics
+
+Enable **Show diagnostic log** in the panel before starting a job. Fetch diagnostics distinguish:
+
+- an observable HTTP response, including status code and status text; from
+- a request blocked before the browser exposes any HTTP response (for example, browser CORS/network policy, DNS/TLS failure, or an unavailable extension fetch context).
+
+For safety, the diagnostic display records the URL origin and path but omits query strings, which can contain temporary authorization parameters.
 
 ## Build and load
 
