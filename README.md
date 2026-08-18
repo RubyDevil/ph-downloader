@@ -9,6 +9,8 @@ Save PornHub videos as **MP4 files** directly from your browser.
 
 When you open a supported PornHub video page `pornhub.com/view_video.php?viewkey=...`, the extension adds a small **PornHub Downloader** panel to the page. From there, you can download a video as an MP4 file.
 
+<img width="327" height="216" alt="image" src="https://github.com/user-attachments/assets/d07bb4bd-ab3a-4abb-a5bb-3eab041ad9c4" />
+
 ## Install in browser
 
 This project is currently installed as an **unpacked browser extension**:
